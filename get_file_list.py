@@ -1,9 +1,17 @@
+# coding=utf-8
+
+import re
 import os
 import fnmatch
 import hashlib
+import sys
 
 
-disk_path = '/media/user/Transcend/фото/Apple/2018-10'
+def get_config_path():
+    try:
+        return sys.argv[2]
+    except IndexError:
+        return 'config'
 
 
 def get_file_hash(file_name):
@@ -22,9 +30,12 @@ def check_names(work_folder, file_list_, file_type_):
     return out_names
 
 
-def get_folder_doubles(work_folder_, file_list_):
+def get_folder_doubles(work_folder_, file_list_, log_file_name_):
     out = {}
-    print('Checking folder "{0:100}" total files: {1}'.format(work_folder_, len(file_list_)))
+    log_string = ('Checking folder "{0:60}" total files: {1}'.format(work_folder_, len(file_list_)))
+    with open(log_file_name_, 'a') as log:
+        log.write('{0}\n'.format(log_string))
+    print(log_string)
     hash_dict = {}
     for file in file_list_:
         file_hash = get_file_hash(file)
@@ -39,15 +50,15 @@ def get_folder_doubles(work_folder_, file_list_):
     return out
 
 
-def write_doubles(file_list_):
-    with open('out.txt', 'a') as file_out:
+def write_doubles(file_list_, out_file_name_):
+    with open(out_file_name_, 'a') as file_out:
         file_out.writelines([key+':{0}\n'.format(value) for key in file_list_.keys() for value in file_list_.get(key)])
 
 
-def folder_check(work_folder, file_list_, file_type_):
+def folder_check(work_folder, file_list_, file_type_, out_file_name_, log_file_name_):
     file_list_ = check_names(work_folder, file_list_, file_type_)
-    file_doubles = get_folder_doubles(work_folder, file_list_)
-    write_doubles(file_doubles)
+    file_doubles = get_folder_doubles(work_folder, file_list_, log_file_name_)
+    write_doubles(file_doubles, out_file_name_)
 
 
 def delete_old_file(file_name):
@@ -57,12 +68,31 @@ def delete_old_file(file_name):
         pass
 
 
-def main(work_folder, file_type='JPG', out_file_name='out.txt'):
+def get_config(config_path_):
+    try:
+        with open(config_path_, 'r') as file:
+            config = ({_.split(';')[0].strip(): _.split(';')[1].replace('\n', '').strip() for _ in file.readlines()
+                       if re.search(';', _)})
+            return config
+    except NameError:
+        return None
+
+
+def main(config_path_):
+    config = get_config(config_path_)
+    assert config is not None, 'config is None, check config'
+    out_file_name = config.get('out_file_name')
+    log_file_name = config.get('log_file_name')
+    work_folder = config.get('work_folder')
+    file_type = config.get('file_type')
     delete_old_file(out_file_name)
+    delete_old_file(log_file_name)
     for _ in os.walk(work_folder, topdown=True, onerror=None, followlinks=False):
         folder, sub_folders, file_list = _
         if len(file_list) > 0:
-            folder_check(folder, file_list, file_type)
+            folder_check(folder, file_list, file_type, out_file_name, log_file_name)
 
 
-main(disk_path)
+if __name__ == '__main__':
+    config_path = get_config_path()
+    main(config_path)
